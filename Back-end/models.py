@@ -46,7 +46,3 @@ employee_job_association = db.Table('employee_job_association',
 
 
 
-# Establish the relationship between the tables:
-# 1.employer  can have many employees
-# 2.employers can post many jobs
-# 3.employee can aapply to many jobs
