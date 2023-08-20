@@ -1,134 +1,52 @@
-from flask import Flask, jsonify, request
-from flask_migrate import Migrate
-from models import db, Restaurant, Pizza, RestaurantPizza
-
-app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-db.init_app(app)
-migrate = Migrate(app, db)
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+db = SQLAlchemy()
 
 
-
-@app.route('/restaurants', methods=['GET'])
-def get_restaurants():
-    restaurants = Restaurant.query.all()
-    restaurant_list = []
-
-    for restaurant in restaurants:
-        restaurant_data = {
-            'id': restaurant.id,
-            'name': restaurant.name,
-            'address': restaurant.address
-        }
-        restaurant_list.append(restaurant_data)
-
-    return jsonify(restaurant_list)
+class Employer(db.Model):
+    __tablename__ = 'employers'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100))
+    email = db.Column(db.String(100), unique=True)
+    phone_number = db.Column(db.String(20))
+    employees = db.relationship('Employee', backref='employer', lazy=True)
+    jobs = db.relationship('Job', backref='employer', lazy=True)
 
 
-@app.route('/restaurants/<int:id>', methods=['GET'])
-def get_restaurant(id):
-    restaurant = Restaurant.query.get(id)
-
-    if restaurant is None:
-        return jsonify({'error': 'Restaurant not found'}), 404
-
-    pizzas = []
-    for restaurant_pizza in restaurant.pizzas:
-        pizza = restaurant_pizza.pizza
-        pizza_data = {
-            'id': pizza.id,
-            'name': pizza.name,
-            'ingredients': pizza.ingredients
-        }
-        pizzas.append(pizza_data)
-
-    restaurant_data = {
-        'id': restaurant.id,
-        'name': restaurant.name,
-        'address': restaurant.address,
-        'pizzas': pizzas
-    }
-
-    return jsonify(restaurant_data)
+class Employee(db.Model):
+    __tablename__ = 'employees'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100))
+    email = db.Column(db.String(100), unique=True)
+    job_title = db.Column(db.String(100))
+    phone_number = db.Column(db.String(20))
+    employer_id = db.Column(db.Integer, db.ForeignKey('employers.id'))
+    jobs = db.relationship('Job', secondary='employee_job_association', backref='applicants', lazy='subquery')
 
 
-@app.route('/restaurants', methods=['POST'])
-def create_restaurant():
-    data = request.get_json()
-
-    name = data.get('name')
-    address = data.get('address')
-
-    if not name or not address:
-        return jsonify({'errors': ['Missing required data']}), 400
-
-    restaurant = Restaurant(name=name, address=address)
-    db.session.add(restaurant)
-    db.session.commit()
-
-    restaurant_data = {
-        'id': restaurant.id,
-        'name': restaurant.name,
-        'address': restaurant.address
-    }
-
-    return jsonify(restaurant_data), 201
+class Job(db.Model):
+    __tablename__ = 'jobs'
+    id = db.Column(db.Integer, primary_key=True)
+    company_name = db.Column(db.String(100))
+    job_title = db.Column(db.String(100))
+    location = db.Column(db.String(100))
+    paye = db.Column(db.Integer)
+    description = db.Column(db.Text)
+    responsibility = db.Column(db.Text)
+    qualification = db.Column(db.Text)
+    employer_id = db.Column(db.Integer, db.ForeignKey('employers.id'))
 
 
-@app.route('/restaurants/<int:id>', methods=['PUT'])
-def update_restaurant(id):
-    data = request.get_json()
-
-    name = data.get('name')
-    address = data.get('address')
-
-    restaurant = Restaurant.query.get(id)
-
-    if restaurant is None:
-        return jsonify({'error': 'Restaurant not found'}), 404
-
-    if name is not None:
-        restaurant.name = name
-
-    if address is not None:
-        restaurant.address = address
-
-    db.session.commit()
-
-    return jsonify({'message': 'Restaurant updated'}), 200
-
-
-@app.route('/restaurants/<int:id>', methods=['DELETE'])
-def delete_restaurant(id):
-    restaurant = Restaurant.query.get(id)
-
-    if restaurant is None:
-        return jsonify({'error': 'Restaurant not found'}), 404
-
-    db.session.delete(restaurant)
-    db.session.commit()
-
-    return '', 204
-
-
-@app.route('/pizzas', methods=['GET'])
-def get_pizzas():
-    pizzas = Pizza.query.all()
-    pizza_list = []
-
-    for pizza in pizzas:
-        pizza_data = {
-            'id': pizza.id,
-            'name': pizza.name,
-            'ingredients': pizza.ingredients
-        }
-        pizza_list.append(pizza_data)
-
-    return jsonify(pizza_list), 200
+employee_job_association = db.Table('employee_job_association',
+                                    db.Column('employee_id', db.Integer, db.ForeignKey('employees.id'),
+                                              primary_key=True),
+                                    db.Column('job_id', db.Integer, db.ForeignKey('jobs.id'), primary_key=True)
+                                    )
 
 
 
-if __name__ == '__main__':
-    app.run(debug=True)
+
+# Establish the relationship between the tables:
+# 1.employer  can have many employees
+# 2.employers can post many jobs
+# 3.employee can aapply to many jobs
